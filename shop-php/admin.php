@@ -105,12 +105,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
             }
         }
+
+        // --- UPDATE ORDER STATUS ---
+        if ($_POST['action'] === 'update_order_status') {
+            $orderId = $_POST['order_id'] ?? '';
+            $newStatus = $_POST['status'] ?? '';
+            if ($orderId && in_array($newStatus, ['Pending', 'Processing', 'Delivered', 'Cancelled'])) {
+                order_update_status($orderId, $newStatus);
+                flash_set('Order status updated to ' . $newStatus);
+                redirect('admin.php');
+            }
+        }
+
+        // --- DELETE ORDER ---
+        if ($_POST['action'] === 'delete_order') {
+            $orderId = $_POST['order_id'] ?? '';
+            if ($orderId) {
+                order_delete($orderId);
+                flash_set('Order #' . $orderId . ' has been deleted.');
+                redirect('admin.php');
+            }
+        }
+
+        // --- DELETE ALL ORDERS ---
+        if ($_POST['action'] === 'delete_all_orders') {
+            order_delete_all();
+            flash_set('All orders have been cleared.');
+            redirect('admin.php');
+        }
     }
 }
 
-// Reload products from DB after any changes
+// Reload data
 $allUsers = get_all_users();
+$allOrders = get_all_orders();
+$monthlySales = get_monthly_sales();
 $totalUsers = count($allUsers);
+$totalOrders = count($allOrders);
+$pendingOrders = array_filter($allOrders, fn($o) => $o['status'] === 'Pending');
 $totalProducts = count($PRODUCTS);
 $lowStockProducts = array_filter($PRODUCTS, fn($p) => ($p['stock'] ?? 0) <= 10);
 
@@ -118,16 +150,22 @@ $pageTitle = 'Admin Dashboard — Curated.';
 require __DIR__ . '/header.php';
 ?>
 
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <div class="admin-layout container">
   <div class="admin-header">
     <div class="admin-title">
       <h2>Admin Dashboard</h2>
-      <p>System Overview & User Management</p>
     </div>
     <div class="admin-stats">
       <div class="stat-card">
-        <span class="stat-value"><?= e((string)$totalUsers) ?></span>
-        <span class="stat-label">Total Users</span>
+        <span class="stat-value"><?= e((string)$totalOrders) ?></span>
+        <span class="stat-label">Total Orders</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value" style="color: var(--accent);"><?= e((string)count($pendingOrders)) ?></span>
+        <span class="stat-label">Pending</span>
       </div>
       <div class="stat-card">
         <span class="stat-value"><?= e((string)$totalProducts) ?></span>
@@ -137,6 +175,158 @@ require __DIR__ . '/header.php';
         <span class="stat-value" style="color: var(--warn);"><?= e((string)count($lowStockProducts)) ?></span>
         <span class="stat-label">Low Stock</span>
       </div>
+    </div>
+  </div>
+
+  <!-- Sales Analytics Chart -->
+  <div class="admin-card" style="margin-bottom: 32px;">
+    <div class="card-header">
+      <h3>Revenue Overview</h3>
+    </div>
+    <div style="padding: 24px;">
+      <?php if (empty($monthlySales)): ?>
+        <p style="text-align: center; color: var(--fg-muted); padding: 40px 0;">No sales data available yet for analytics.</p>
+      <?php else: ?>
+        <canvas id="salesChart" style="max-height: 280px; width: 100%;"></canvas>
+        <script>
+          document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            
+            new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: <?= json_encode(array_map(fn($s) => date('M Y', strtotime($s['month'] . '-01')), $monthlySales)) ?>,
+                datasets: [{
+                  label: 'Revenue ($)',
+                  data: <?= json_encode(array_map(fn($s) => (float)$s['total'], $monthlySales)) ?>,
+                  backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                  borderColor: '#000000',
+                  borderWidth: 1.5,
+                  borderRadius: 8, // Modern rounded bars
+                  hoverBackgroundColor: '#000000',
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: false },
+                  tooltip: {
+                    backgroundColor: '#111',
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                      label: function(context) {
+                        return 'Revenue: $' + context.parsed.y.toLocaleString();
+                      }
+                    }
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    grid: { color: '#f0f0f0', drawBorder: false },
+                    ticks: { font: { size: 11, family: 'Inter' } }
+                  },
+                  x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11, family: 'Inter' } }
+                  }
+                }
+              }
+            });
+          });
+        </script>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- Recent Orders Table -->
+  <div class="admin-card" style="margin-bottom: 32px;">
+    <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+      <h3>Recent Orders</h3>
+      <?php if (!empty($allOrders)): ?>
+        <form method="post" action="admin.php" onsubmit="return confirm('EXTREME CAUTION: Are you sure you want to delete ALL orders? This cannot be undone.');">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>" />
+          <input type="hidden" name="action" value="delete_all_orders" />
+          <button type="submit" class="btn btn-secondary" style="color: var(--warn); font-size: 11px; padding: 6px 12px;">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right: 4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Delete All Orders
+          </button>
+        </form>
+      <?php endif; ?>
+    </div>
+    <div class="table-responsive">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Customer</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($allOrders as $order): ?>
+          <tr>
+            <td><a href="view_order.php?id=<?= e($order['id']) ?>" style="color: var(--accent); text-decoration: underline;"><strong><?= e($order['id']) ?></strong></a></td>
+            <td><?= e($order['user_email'] ?: 'Guest') ?></td>
+            <td>
+              <?php foreach ($order['items'] as $item): ?>
+                <div style="font-size: 11px; white-space: nowrap;">
+                  <?= e($item['product_name']) ?> (<?= (int)$item['quantity'] ?>)
+                </div>
+              <?php endforeach; ?>
+            </td>
+            <td><?= money($order['total_amount']) ?></td>
+            <td style="white-space: nowrap;"><?= date('M j, Y', strtotime($order['created_at'])) ?></td>
+            <td>
+              <?php 
+                $statusColor = 'var(--accent-soft)'; 
+                $textColor = 'var(--accent)';
+                if ($order['status'] === 'Delivered') { $statusColor = '#dcfce7'; $textColor = '#166534'; }
+                if ($order['status'] === 'Cancelled') { $statusColor = '#fce8e6'; $textColor = 'var(--warn)'; }
+                if ($order['status'] === 'Processing') { $statusColor = '#e0f2fe'; $textColor = '#0369a1'; }
+              ?>
+              <span class="badge" style="background: <?= $statusColor ?>; color: <?= $textColor ?>;">
+                <?= e($order['status']) ?>
+              </span>
+            </td>
+            <td style="white-space: nowrap;">
+              <form method="post" action="admin.php" style="display: inline-flex; gap: 4px; align-items: center;">
+                <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>" />
+                <input type="hidden" name="action" value="update_order_status" />
+                <input type="hidden" name="order_id" value="<?= e($order['id']) ?>" />
+                <select name="status" style="font-size: 11px; padding: 4px; border-radius: 4px; border: 1px solid var(--border);">
+                  <option value="Pending" <?= $order['status'] === 'Pending' ? 'selected' : '' ?>>Pending</option>
+                  <option value="Processing" <?= $order['status'] === 'Processing' ? 'selected' : '' ?>>Processing</option>
+                  <option value="Delivered" <?= $order['status'] === 'Delivered' ? 'selected' : '' ?>>Delivered</option>
+                  <option value="Cancelled" <?= $order['status'] === 'Cancelled' ? 'selected' : '' ?>>Cancelled</option>
+                </select>
+                <button type="submit" class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;">Update</button>
+              </form>
+              
+              <form method="post" action="admin.php" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this order?');">
+                <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>" />
+                <input type="hidden" name="action" value="delete_order" />
+                <input type="hidden" name="order_id" value="<?= e($order['id']) ?>" />
+                <button type="submit" class="btn-delete" title="Delete order" style="margin-left: 8px;">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+          <?php if (empty($allOrders)): ?>
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 32px; color: var(--fg-muted);">No orders yet.</td>
+          </tr>
+          <?php endif; ?>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -300,8 +490,10 @@ require __DIR__ . '/header.php';
           <?php foreach ($allUsers as $u): ?>
           <tr>
             <td>#<?= e((string)$u['id']) ?></td>
-            <td class="td-user">
-              <strong><?= e($u['username']) ?></strong>
+            <td>
+              <div class="td-user">
+                <strong><?= e($u['username']) ?></strong>
+              </div>
             </td>
             <td><?= e($u['email']) ?></td>
             <td><?= e((string)$u['age']) ?> / <?= e(ucfirst($u['gender'])) ?></td>
@@ -318,10 +510,10 @@ require __DIR__ . '/header.php';
                 <input type="hidden" name="action" value="update_user_role" />
                 <?php if ($u['type'] === 'Admin'): ?>
                     <input type="hidden" name="new_role" value="User" />
-                    <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px; margin-right: 4px;">Demote</button>
+                    <button type="submit" class="btn btn-secondary btn-sm" style="margin-right: 4px;">Demote</button>
                 <?php else: ?>
                     <input type="hidden" name="new_role" value="Admin" />
-                    <button type="submit" class="btn btn-primary" style="padding: 4px 8px; font-size: 11px; margin-right: 4px;">Promote</button>
+                    <button type="submit" class="btn btn-primary btn-sm" style="margin-right: 4px;">Promote</button>
                 <?php endif; ?>
               </form>
               <form method="post" action="admin.php" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this user?');">
@@ -337,14 +529,13 @@ require __DIR__ . '/header.php';
           <?php endforeach; ?>
           <?php if (empty($allUsers)): ?>
           <tr>
-            <td colspan="6" style="text-align: center; padding: 32px; color: var(--fg-muted);">
+            <td colspan="7" style="text-align: center; padding: 32px; color: var(--fg-muted);">
               No users found.
             </td>
           </tr>
           <?php endif; ?>
         </tbody>
       </table>
-    </div>
   </div>
 </div>
 

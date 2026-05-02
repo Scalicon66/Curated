@@ -33,6 +33,71 @@ function get_db_connection(): PDO {
 
 require_once __DIR__ . '/products.php';
 
+// --- Multi-Language System ---
+function lang_init(): void {
+    if (!isset($_SESSION['lang'])) {
+        $_SESSION['lang'] = 'en';
+    }
+    if (isset($_GET['lang']) && in_array($_GET['lang'], ['en', 'ar'])) {
+        $_SESSION['lang'] = $_GET['lang'];
+    }
+}
+
+function lang_current(): string {
+    return $_SESSION['lang'] ?? 'en';
+}
+
+function t(string $key): string {
+    static $translations = [
+        'en' => [
+            'shop_all' => 'Shop All',
+            'admin_panel' => 'Admin Panel',
+            'profile' => 'Profile',
+            'logout' => 'Logout',
+            'login' => 'Log In',
+            'signup' => 'Sign Up',
+            'hero_title' => 'Essential Objects.',
+            'hero_desc' => 'Thoughtfully designed, carefully selected tools for your daily rituals.',
+            'search_placeholder' => 'Search products...',
+            'cart' => 'Cart',
+            'add_to_cart' => 'Add to Cart',
+            'in_stock' => 'in stock',
+            'sold_out' => 'Sold out',
+            'in_cart' => 'in cart',
+            'nothing_matches' => 'Nothing matches that.',
+            'try_different' => 'Try a different search term or category.',
+            'price' => 'Price',
+            'categories' => 'Categories',
+            'all' => 'All',
+        ],
+        'ar' => [
+            'shop_all' => 'تسوق الكل',
+            'admin_panel' => 'لوحة التحكم',
+            'profile' => 'الملف الشخصي',
+            'logout' => 'تسجيل الخروج',
+            'login' => 'تسجيل الدخول',
+            'signup' => 'إنشاء حساب',
+            'hero_title' => 'قطع أساسية.',
+            'hero_desc' => 'أدوات مصممة بعناية ومختارة بدقة لطقوسك اليومية.',
+            'search_placeholder' => 'ابحث عن المنتجات...',
+            'cart' => 'السلة',
+            'add_to_cart' => 'أضف إلى السلة',
+            'in_stock' => 'متوفر في المخزون',
+            'sold_out' => 'نفذت الكمية',
+            'in_cart' => 'في السلة',
+            'nothing_matches' => 'لا توجد نتائج تطابق بحثك.',
+            'try_different' => 'حاول استخدام كلمات بحث مختلفة أو فئة أخرى.',
+            'price' => 'السعر',
+            'categories' => 'الفئات',
+            'all' => 'الكل',
+        ]
+    ];
+    $lang = lang_current();
+    return $translations[$lang][$key] ?? $key;
+}
+
+lang_init();
+
 // --- Output helpers ---
 function e(string $s): string {
     return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -247,6 +312,14 @@ function product_find_db(string $id): ?array {
     return $row ?: null;
 }
 
+function product_search(string $query): array {
+    $db = get_db_connection();
+    $q = '%' . $query . '%';
+    $stmt = $db->prepare('SELECT * FROM products WHERE name LIKE ? OR category LIKE ? OR short_description LIKE ? OR long_description LIKE ?');
+    $stmt->execute([$q, $q, $q, $q]);
+    return $stmt->fetchAll();
+}
+
 // --- User Management ---
 function user_update_role(int $id, string $type): bool {
     $db = get_db_connection();
@@ -258,5 +331,155 @@ function user_delete(int $id): bool {
     $db = get_db_connection();
     $stmt = $db->prepare('DELETE FROM users WHERE id = ?');
     return $stmt->execute([$id]);
+}
+
+// --- Email Notifications (PHPMailer) ---
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\SMTP;
+
+require_once __DIR__ . '/vendor/PHPMailer/Exception.php';
+require_once __DIR__ . '/vendor/PHPMailer/PHPMailer.php';
+require_once __DIR__ . '/vendor/PHPMailer/SMTP.php';
+
+function send_order_email(string $to, string $subject, string $message): bool {
+    $mail = new PHPMailer(true);
+    try {
+        // Server settings
+        $mail->SMTPDebug  = 0; // Set to 2 if you still get errors to see the log
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'skibidipipidi2@gmail.com'; 
+        // IMPORTANT: Use a Gmail App Password, not your regular password
+        // Get it here: https://myaccount.google.com/apppasswords
+        $mail->Password   = 'YOUR_GMAIL_APP_PASSWORD'; 
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        // Recipients
+        $mail->setFrom('skibidipipidi2@gmail.com', 'Curated Store');
+        $mail->addAddress($to);
+
+        // Content
+        $mail->isHTML(false);
+        $mail->Subject = $subject;
+        $mail->Body    = $message;
+
+        return $mail->send();
+    } catch (Exception $e) {
+        // Error logging can go here
+        return false;
+    }
+}
+
+// --- Order Persistence ---
+function save_order(string $orderId, ?string $userEmail, float $total, array $items, array $details): bool {
+    $db = get_db_connection();
+    try {
+        $db->beginTransaction();
+        
+        $stmt = $db->prepare('INSERT INTO orders (id, user_email, full_name, phone, whatsapp, governorate, city, address, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([
+            $orderId, 
+            $userEmail, 
+            $details['name'], 
+            $details['phone'], 
+            $details['whatsapp'], 
+            $details['governorate'], 
+            $details['city'], 
+            $details['address'], 
+            $total
+        ]);
+        
+        $stmtItem = $db->prepare('INSERT INTO order_items (order_id, product_name, quantity, price) VALUES (?, ?, ?, ?)');
+        foreach ($items as $item) {
+            $stmtItem->execute([$orderId, $item['name'], $item['qty'], $item['price']]);
+        }
+        
+        $db->commit();
+        return true;
+    } catch (PDOException $e) {
+        $db->rollBack();
+        return false;
+    }
+}
+
+function get_user_orders(string $email): array {
+    $db = get_db_connection();
+    $stmt = $db->prepare('SELECT * FROM orders WHERE user_email = ? ORDER BY created_at DESC');
+    $stmt->execute([$email]);
+    $orders = $stmt->fetchAll();
+    
+    foreach ($orders as &$order) {
+        $stmtItem = $db->prepare('SELECT * FROM order_items WHERE order_id = ?');
+        $stmtItem->execute([$order['id']]);
+        $order['items'] = $stmtItem->fetchAll();
+    }
+    
+    return $orders;
+}
+
+function get_all_orders(): array {
+    $db = get_db_connection();
+    $stmt = $db->query('SELECT * FROM orders ORDER BY created_at DESC');
+    $orders = $stmt->fetchAll();
+    
+    foreach ($orders as &$order) {
+        $stmtItem = $db->prepare('SELECT * FROM order_items WHERE order_id = ?');
+        $stmtItem->execute([$order['id']]);
+        $order['items'] = $stmtItem->fetchAll();
+    }
+    
+    return $orders;
+}
+
+function get_order_details(string $id): ?array {
+    $db = get_db_connection();
+    $stmt = $db->prepare('SELECT * FROM orders WHERE id = ?');
+    $stmt->execute([$id]);
+    $order = $stmt->fetch();
+    
+    if ($order) {
+        $stmtItem = $db->prepare('SELECT * FROM order_items WHERE order_id = ?');
+        $stmtItem->execute([$id]);
+        $order['items'] = $stmtItem->fetchAll();
+        return $order;
+    }
+    return null;
+}
+
+function order_update_status(string $id, string $status): bool {
+    $db = get_db_connection();
+    $stmt = $db->prepare('UPDATE orders SET status = ? WHERE id = ?');
+    return $stmt->execute([$status, $id]);
+}
+
+function order_delete(string $id): bool {
+    $db = get_db_connection();
+    $stmt = $db->prepare('DELETE FROM orders WHERE id = ?');
+    return $stmt->execute([$id]);
+}
+
+function order_delete_all(): bool {
+    $db = get_db_connection();
+    // TRUNCATE is faster and resets IDs, but DELETE is safer with transactions if needed.
+    // Since we have foreign keys with ON DELETE CASCADE, deleting from orders will clean order_items.
+    return $db->exec('DELETE FROM orders') !== false;
+}
+
+function get_monthly_sales(): array {
+    $db = get_db_connection();
+    $stmt = $db->query("
+        SELECT 
+            DATE_FORMAT(created_at, '%Y-%m') as month,
+            SUM(total_amount) as total
+        FROM orders
+        WHERE status != 'Cancelled'
+        GROUP BY month
+        ORDER BY month ASC
+        LIMIT 12
+    ");
+    return $stmt->fetchAll();
 }
 

@@ -19,21 +19,22 @@ include __DIR__ . '/header.php';
 ?>
 
 <section class="hero">
-  <h1>Essential Objects.</h1>
-  <p>Thoughtfully designed, carefully selected tools for your daily rituals.</p>
+  <h1><?= t('hero_title') ?></h1>
+  <p><?= t('hero_desc') ?></p>
 </section>
 
 <form class="toolbar" method="get" action="index.php" id="filterForm">
   <div class="search">
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-    <input type="search" id="searchInput" name="q" placeholder="Search products..." value="<?= e($query) ?>" autocomplete="off" />
+    <input type="search" id="searchInput" name="q" placeholder="<?= t('search_placeholder') ?>" value="<?= e($query) ?>" autocomplete="off" />
   </div>
   <input type="hidden" name="cat" value="<?= e($category) ?>" id="catInput" />
   <div class="filters">
     <?php foreach (array_merge(['All'], all_categories()) as $cat): ?>
+      <?php $catLabel = ($cat === 'All') ? t('all') : $cat; ?>
       <a class="chip<?= $cat === $category ? ' active' : '' ?>"
          href="index.php?<?= http_build_query(['cat' => $cat, 'q' => $query]) ?>">
-        <?= e($cat) ?>
+        <?= e($catLabel) ?>
       </a>
     <?php endforeach; ?>
   </div>
@@ -59,14 +60,14 @@ include __DIR__ . '/header.php';
         <div class="card-bottom">
           <span class="price"><?= money($p['price']) ?></span>
           <?php if (!$p['inStock']): ?>
-            <span class="out-of-stock">Sold out</span>
+            <span class="out-of-stock"><?= t('sold_out') ?></span>
           <?php else: ?>
             <span class="stock-count">
-              <?= (int)($p['stock'] ?? 0) ?> in stock
+              <?= (int)($p['stock'] ?? 0) ?> <?= t('in_stock') ?>
             </span>
           <?php endif; ?>
           <?php if ($qtyInCart > 0): ?>
-            <span class="in-cart-badge"><?= $qtyInCart ?> in cart</span>
+            <span class="in-cart-badge"><?= $qtyInCart ?> <?= t('in_cart') ?></span>
           <?php endif; ?>
         </div>
       </div>
