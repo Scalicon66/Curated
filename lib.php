@@ -353,7 +353,7 @@ function send_order_email(string $to, string $subject, string $message): bool {
         $mail->Username   = 'skibidipipidi2@gmail.com'; 
         // IMPORTANT: Use a Gmail App Password, not your regular password
         // Get it here: https://myaccount.google.com/apppasswords
-        $mail->Password   = 'YOUR_GMAIL_APP_PASSWORD'; 
+        $mail->Password   = 'zxnn whdz onng ruce'; 
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 

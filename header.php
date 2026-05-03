@@ -27,28 +27,75 @@ $dir = ($lang === 'ar') ? 'rtl' : 'ltr';
   <?php endif; ?>
   <link rel="stylesheet" href="styles.css" />
   <style>
-    /* Critical Loader Styles */
+    /* Premium Brand Preloader */
     #preloader {
       position: fixed;
       top: 0; left: 0;
       width: 100%; height: 100%;
       background: var(--bg);
       display: flex;
+      flex-direction: column;
       align-items: center; justify-content: center;
       z-index: 99999;
-      transition: opacity 0.4s ease;
+      transition: opacity 0.8s cubic-bezier(0.65, 0, 0.35, 1), transform 0.8s cubic-bezier(0.65, 0, 0.35, 1);
     }
-    .loader-spinner {
-      width: 50px; height: 50px;
-      border: 3px solid var(--accent-soft);
-      border-top: 3px solid var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    #preloader.fade-out { 
+      opacity: 0; 
+      transform: translateY(-30px);
+      pointer-events: none; 
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    .loader-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
     }
-    #preloader.fade-out { opacity: 0; pointer-events: none; }
+    .loader-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      overflow: hidden;
+    }
+    .loader-logo span {
+      display: inline-block;
+      opacity: 0;
+      transform: translateY(100%);
+      animation: letterReveal 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    @keyframes letterReveal {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .loader-logo span:nth-child(1) { animation-delay: 0.1s; }
+    .loader-logo span:nth-child(2) { animation-delay: 0.15s; }
+    .loader-logo span:nth-child(3) { animation-delay: 0.2s; }
+    .loader-logo span:nth-child(4) { animation-delay: 0.25s; }
+    .loader-logo span:nth-child(5) { animation-delay: 0.3s; }
+    .loader-logo span:nth-child(6) { animation-delay: 0.35s; }
+    .loader-logo span:nth-child(7) { animation-delay: 0.4s; }
+
+    .loader-progress {
+      width: 120px;
+      height: 1px;
+      background: var(--accent-soft);
+      position: relative;
+      overflow: hidden;
+    }
+    .loader-progress::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: var(--accent);
+      transform: translateX(-100%);
+      animation: progressMove 1.5s infinite ease-in-out;
+    }
+    @keyframes progressMove {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(0); }
+      100% { transform: translateX(100%); }
+    }
 
     /* RTL specific overrides if needed */
     [dir="rtl"] .cart-badge { left: -8px; right: auto; }
@@ -59,17 +106,38 @@ $dir = ($lang === 'ar') ? 'rtl' : 'ltr';
 <body>
   <!-- Page Preloader -->
   <div id="preloader">
-    <div class="loader-spinner"></div>
+    <div class="loader-content">
+      <div class="loader-logo">
+        <span>C</span><span>u</span><span>r</span><span>a</span><span>t</span><span>e</span><span>d</span>
+      </div>
+      <div class="loader-progress"></div>
+    </div>
   </div>
 
   <script>
     window.addEventListener('load', function() {
       const preloader = document.getElementById('preloader');
       if (preloader) {
-        setTimeout(() => {
-          preloader.classList.add('fade-out');
-          setTimeout(() => preloader.remove(), 400);
-        }, 400); 
+        // Lock scroll during preloader
+        document.body.style.overflow = 'hidden';
+        
+        // Ensure a minimum display time for the beautiful animation
+        const minTime = 800; 
+        const startTime = window.performance.now();
+        
+        const hidePreloader = () => {
+          const currentTime = window.performance.now();
+          const elapsed = currentTime - startTime;
+          const delay = Math.max(0, minTime - elapsed);
+          
+          setTimeout(() => {
+            preloader.classList.add('fade-out');
+            document.body.style.overflow = ''; // Unlock scroll
+            setTimeout(() => preloader.remove(), 800);
+          }, delay);
+        };
+
+        hidePreloader();
       }
     });
 
@@ -84,7 +152,7 @@ $dir = ($lang === 'ar') ? 'rtl' : 'ltr';
   <header class="site-header">
     <div class="container header-inner">
       <div style="display: flex; align-items: center; gap: 24px;">
-        <a href="index.php" class="logo">Curated.</a>
+        <a href="index.php" class="logo">Curated</a>
         <div class="lang-switcher" style="display: flex; gap: 8px; font-size: 12px; font-weight: 600;">
           <a href="?lang=en" style="color: <?= $lang === 'en' ? 'var(--accent)' : 'var(--fg-muted)' ?>; text-decoration: none;">EN</a>
           <span style="color: var(--border);">|</span>

@@ -32,38 +32,40 @@ require __DIR__ . '/header.php';
 ?>
 
 <div class="auth-layout">
-  <div class="auth-container">
-    <div class="auth-header">
-      <h2>Welcome Back</h2>
-      <p>Log in to your account to continue</p>
-    </div>
+  <div class="auth-header">
+    <a href="index.php" style="text-decoration: none;"><h2>Curated</h2></a>
+  </div>
 
+  <div class="auth-container">
     <form method="post" action="login.php" class="form">
       <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>" />
       
       <?php if ($error): ?>
-        <div class="demo-note" style="background: var(--warn); color: #fff; text-align: center;">
+        <div class="demo-note" style="background: var(--warn); color: #fff; text-align: center; margin-bottom: 20px;">
           <?= e($error) ?>
         </div>
       <?php endif; ?>
 
       <div class="field">
-        <label for="email">Email address</label>
-        <input type="email" id="email" name="email" required autofocus placeholder="hello@example.com" />
+        <input type="email" id="email" name="email" required autofocus placeholder="Email address" aria-label="Email address" />
       </div>
 
       <div class="field">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required placeholder="••••••••" />
+        <input type="password" id="password" name="password" required placeholder="Password" aria-label="Password" />
       </div>
 
       <button type="submit" class="btn btn-primary">Log In</button>
-    </form>
+      
+      <div style="text-align: center; margin-top: 16px;">
+        <a href="#" style="color: var(--accent); font-size: 14px; text-decoration: none;">Forgotten password?</a>
+      </div>
 
-    <div class="auth-footer">
-      Don't have an account? <a href="register.php">Sign up</a>
-    </div>
+      <div class="divider"></div>
+
+      <a href="register.php" class="btn btn-secondary">Create new account</a>
+    </form>
   </div>
+  
 </div>
 
 <?php require __DIR__ . '/footer.php'; ?>
