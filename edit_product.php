@@ -37,23 +37,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // Handle optional image upload (only update image if a new one was uploaded)
             $imageUrl = null; // null = keep existing image
-            if (isset($_FILES['product_image']) && $_FILES['product_image']['error'] === UPLOAD_ERR_OK && $_FILES['product_image']['size'] > 0) {
-                $uploadDir = __DIR__ . '/images/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
-                $ext = strtolower(pathinfo($_FILES['product_image']['name'], PATHINFO_EXTENSION));
-                $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                if (!in_array($ext, $allowed)) {
-                    $error = 'Invalid image format. Use JPG, PNG, GIF, or WEBP.';
-                } else {
-                    $fileName = 'product-' . bin2hex(random_bytes(8)) . '.' . $ext;
-                    $destPath = $uploadDir . $fileName;
-                    if (move_uploaded_file($_FILES['product_image']['tmp_name'], $destPath)) {
-                        $imageUrl = 'images/' . $fileName;
-                    } else {
-                        $error = 'Failed to upload image.';
+            if (isset($_FILES['product_image']) && $_FILES['product_image']['error'] !== UPLOAD_ERR_NO_FILE) {
+                $fileError = $_FILES['product_image']['error'];
+                
+                if ($fileError === UPLOAD_ERR_OK) {
+                    $uploadDir = __DIR__ . '/images/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
                     }
+                    $ext = strtolower(pathinfo($_FILES['product_image']['name'], PATHINFO_EXTENSION));
+                    $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                    if (!in_array($ext, $allowed)) {
+                        $error = 'Invalid image format. Use JPG, PNG, GIF, or WEBP.';
+                    } else {
+                        $fileName = 'product-' . bin2hex(random_bytes(8)) . '.' . $ext;
+                        $destPath = $uploadDir . $fileName;
+                        if (move_uploaded_file($_FILES['product_image']['tmp_name'], $destPath)) {
+                            $imageUrl = 'images/' . $fileName;
+                        } else {
+                            $error = 'Failed to save the uploaded image. Check directory permissions.';
+                        }
+                    }
+                } elseif ($fileError === UPLOAD_ERR_INI_SIZE || $fileError === UPLOAD_ERR_FORM_SIZE) {
+                    $error = 'The uploaded image is too large.';
+                } else {
+                    $error = 'Image upload failed with error code: ' . $fileError;
                 }
             }
 

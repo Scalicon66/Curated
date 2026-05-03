@@ -461,6 +461,20 @@ function order_delete(string $id): bool {
     return $stmt->execute([$id]);
 }
 
+function order_delete_user_order(string $email, string $orderId): bool {
+    $db = get_db_connection();
+    // Reverted to DELETE as requested, but with a safety check that it must be Pending
+    $stmt = $db->prepare('DELETE FROM orders WHERE id = ? AND user_email = ? AND status = "Pending"');
+    return $stmt->execute([$orderId, $email]);
+}
+
+function order_delete_all_user_orders(string $email): bool {
+    $db = get_db_connection();
+    // Reverted to DELETE as requested, but only for Pending orders
+    $stmt = $db->prepare('DELETE FROM orders WHERE user_email = ? AND status = "Pending"');
+    return $stmt->execute([$email]);
+}
+
 function order_delete_all(): bool {
     $db = get_db_connection();
     // TRUNCATE is faster and resets IDs, but DELETE is safer with transactions if needed.

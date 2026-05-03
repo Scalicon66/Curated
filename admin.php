@@ -34,27 +34,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } else {
                 // Handle image upload
                 $imageUrl = '';
-                if (isset($_FILES['product_image']) && $_FILES['product_image']['error'] === UPLOAD_ERR_OK) {
-                    $uploadDir = __DIR__ . '/images/';
-                    if (!is_dir($uploadDir)) {
-                        mkdir($uploadDir, 0755, true);
-                    }
-
-                    $ext = strtolower(pathinfo($_FILES['product_image']['name'], PATHINFO_EXTENSION));
-                    $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                    if (!in_array($ext, $allowed)) {
-                        $error = 'Invalid image format. Use JPG, PNG, GIF, or WEBP.';
-                    } else {
-                        $fileName = 'product-' . bin2hex(random_bytes(8)) . '.' . $ext;
-                        $destPath = $uploadDir . $fileName;
-                        if (move_uploaded_file($_FILES['product_image']['tmp_name'], $destPath)) {
-                            $imageUrl = 'images/' . $fileName;
-                        } else {
-                            $error = 'Failed to upload image.';
+                if (isset($_FILES['product_image'])) {
+                    $fileError = $_FILES['product_image']['error'];
+                    
+                    if ($fileError === UPLOAD_ERR_OK) {
+                        $uploadDir = __DIR__ . '/images/';
+                        if (!is_dir($uploadDir)) {
+                            mkdir($uploadDir, 0755, true);
                         }
+
+                        $ext = strtolower(pathinfo($_FILES['product_image']['name'], PATHINFO_EXTENSION));
+                        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                        if (!in_array($ext, $allowed)) {
+                            $error = 'Invalid image format. Use JPG, PNG, GIF, or WEBP.';
+                        } else {
+                            $fileName = 'product-' . bin2hex(random_bytes(8)) . '.' . $ext;
+                            $destPath = $uploadDir . $fileName;
+                            if (move_uploaded_file($_FILES['product_image']['tmp_name'], $destPath)) {
+                                $imageUrl = 'images/' . $fileName;
+                            } else {
+                                $error = 'Failed to save the uploaded image to the server. Check directory permissions.';
+                            }
+                        }
+                    } elseif ($fileError === UPLOAD_ERR_NO_FILE) {
+                        $error = 'Please select a product image to upload.';
+                    } elseif ($fileError === UPLOAD_ERR_INI_SIZE || $fileError === UPLOAD_ERR_FORM_SIZE) {
+                        $error = 'The uploaded image is too large.';
+                    } else {
+                        $error = 'Image upload failed with error code: ' . $fileError;
                     }
                 } else {
-                    $error = 'Please upload a product image.';
+                    $error = 'No image data received.';
                 }
 
                 if (!$error) {
@@ -492,7 +502,9 @@ require __DIR__ . '/header.php';
             <td>#<?= e((string)$u['id']) ?></td>
             <td>
               <div class="td-user">
-                <strong><?= e($u['username']) ?></strong>
+                <a href="profile.php?email=<?= urlencode($u['email']) ?>" style="color: var(--accent); text-decoration: none; font-weight: 600;">
+                  <?= e($u['username']) ?>
+                </a>
               </div>
             </td>
             <td><?= e($u['email']) ?></td>
