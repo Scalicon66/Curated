@@ -295,13 +295,20 @@ function product_delete(string $id): bool {
 
 function product_update(string $id, string $name, float $price, string $category, string $shortDesc, string $longDesc, ?string $imageUrl, int $stock): bool {
     $db = get_db_connection();
+    $success = false;
     if ($imageUrl !== null) {
         $stmt = $db->prepare('UPDATE products SET name=?, price=?, category=?, short_description=?, long_description=?, image_url=?, stock=? WHERE id=?');
-        return $stmt->execute([$name, $price, $category, $shortDesc, $longDesc, $imageUrl, $stock, $id]);
+        $success = $stmt->execute([$name, $price, $category, $shortDesc, $longDesc, $imageUrl, $stock, $id]);
     } else {
         $stmt = $db->prepare('UPDATE products SET name=?, price=?, category=?, short_description=?, long_description=?, stock=? WHERE id=?');
-        return $stmt->execute([$name, $price, $category, $shortDesc, $longDesc, $stock, $id]);
+        $success = $stmt->execute([$name, $price, $category, $shortDesc, $longDesc, $stock, $id]);
     }
+
+    if ($success && $stock <= 5) {
+        notify_add(null, 'Low Stock Alert', 'Product "' . $name . '" is low on stock (' . $stock . ' left).', 'admin.php');
+    }
+
+    return $success;
 }
 
 function product_find_db(string $id): ?array {
@@ -398,6 +405,10 @@ function save_order(string $orderId, ?string $userEmail, float $total, array $it
         }
         
         $db->commit();
+        
+        // Notify admin about new order
+        notify_add(null, 'New Order Received', 'A new order (#' . $orderId . ') has been placed by ' . ($userEmail ?: 'Guest') . '.', 'admin.php');
+        
         return true;
     } catch (PDOException $e) {
         $db->rollBack();
@@ -452,7 +463,16 @@ function get_order_details(string $id): ?array {
 function order_update_status(string $id, string $status): bool {
     $db = get_db_connection();
     $stmt = $db->prepare('UPDATE orders SET status = ? WHERE id = ?');
-    return $stmt->execute([$status, $id]);
+    $success = $stmt->execute([$status, $id]);
+
+    if ($success) {
+        $order = get_order_details($id);
+        if ($order && $order['user_email']) {
+            notify_add($order['user_email'], 'Order Status Updated', 'Your order (#' . $id . ') status has been changed to: ' . $status, 'profile.php');
+        }
+    }
+
+    return $success;
 }
 
 function order_delete(string $id): bool {
@@ -495,5 +515,50 @@ function get_monthly_sales(): array {
         LIMIT 12
     ");
     return $stmt->fetchAll();
+}
+
+// --- Notification System ---
+function notify_add(?string $userEmail, string $title, string $message, ?string $link = null): bool {
+    $db = get_db_connection();
+    $stmt = $db->prepare('INSERT INTO notifications (user_email, title, message, link) VALUES (?, ?, ?, ?)');
+    return $stmt->execute([$userEmail, $title, $message, $link]);
+}
+
+function notify_get(?string $userEmail, int $limit = 10): array {
+    $db = get_db_connection();
+    if ($userEmail === null) {
+        // Get admin notifications (those with null user_email)
+        $stmt = $db->prepare('SELECT * FROM notifications WHERE user_email IS NULL ORDER BY created_at DESC LIMIT ?');
+    } else {
+        // Get user notifications + system-wide notifications (if any)
+        $stmt = $db->prepare('SELECT * FROM notifications WHERE user_email = ? OR user_email IS NULL ORDER BY created_at DESC LIMIT ?');
+    }
+    $stmt->bindValue(1, $userEmail, $userEmail === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
+}
+
+function notify_count_unread(?string $userEmail): int {
+    $db = get_db_connection();
+    if ($userEmail === null) {
+        $stmt = $db->prepare('SELECT COUNT(*) FROM notifications WHERE user_email IS NULL AND is_read = 0');
+    } else {
+        $stmt = $db->prepare('SELECT COUNT(*) FROM notifications WHERE (user_email = ? OR user_email IS NULL) AND is_read = 0');
+    }
+    if ($userEmail !== null) $stmt->bindValue(1, $userEmail);
+    $stmt->execute();
+    return (int)$stmt->fetchColumn();
+}
+
+function notify_mark_all_read(?string $userEmail): bool {
+    $db = get_db_connection();
+    if ($userEmail === null) {
+        $stmt = $db->prepare('UPDATE notifications SET is_read = 1 WHERE user_email IS NULL');
+    } else {
+        $stmt = $db->prepare('UPDATE notifications SET is_read = 1 WHERE user_email = ? OR user_email IS NULL');
+    }
+    if ($userEmail !== null) $stmt->bindValue(1, $userEmail);
+    return $stmt->execute();
 }
 

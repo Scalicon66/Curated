@@ -1,7 +1,9 @@
 <?php
 $flash = flash_pop();
 $count = cart_count();
-$isAdmin = user_current() ? (user_details(user_current())['type'] ?? '') === 'Admin' : false;
+$userEmail = user_current();
+$isAdmin = $userEmail ? (user_details($userEmail)['type'] ?? '') === 'Admin' : false;
+$unreadNotifications = notify_count_unread($isAdmin ? null : $userEmail);
 
 $currentPage = basename($_SERVER['SCRIPT_NAME']);
 function isActive($page) {
@@ -173,12 +175,20 @@ $dir = ($lang === 'ar') ? 'rtl' : 'ltr';
           <a href="register.php" class="<?= isActive('register.php') ?>"><?= t('signup') ?></a>
         <?php endif; ?>
       </nav>
-      <a href="cart.php" class="cart-link" aria-label="<?= t('cart') ?>">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-        <?php if ($count > 0): ?>
-          <span class="cart-badge"><?= (int)$count ?></span>
-        <?php endif; ?>
-      </a>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <a href="notifications.php" class="cart-link" aria-label="Notifications" style="position: relative;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <?php if ($unreadNotifications > 0): ?>
+            <span class="cart-badge" style="background: var(--accent);"><?= (int)$unreadNotifications ?></span>
+          <?php endif; ?>
+        </a>
+        <a href="cart.php" class="cart-link" aria-label="<?= t('cart') ?>" style="position: relative;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          <?php if ($count > 0): ?>
+            <span class="cart-badge"><?= (int)$count ?></span>
+          <?php endif; ?>
+        </a>
+      </div>
     </div>
   </header>
 

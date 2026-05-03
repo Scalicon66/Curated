@@ -4,6 +4,7 @@
   --fg: #1a2e26;
   --fg-muted: #6b7a73;
   --accent: #1f4d3f;
+  --accent-rgb: 31, 77, 63;
   --accent-soft: #e8efe9;
   --border: #e3dccf;
   --warn: #b54a3a;
@@ -80,7 +81,7 @@ button {
     flex-wrap: wrap;
     gap: 12px;
   }
-  
+
   .nav {
     order: 3;
     width: 100%;
@@ -189,8 +190,15 @@ button {
 }
 
 @keyframes slideIn {
-  from { width: 0; opacity: 0; }
-  to { width: 100%; opacity: 1; }
+  from {
+    width: 0;
+    opacity: 0;
+  }
+
+  to {
+    width: 100%;
+    opacity: 1;
+  }
 }
 
 .cart-link {
@@ -494,6 +502,16 @@ button {
 
 .btn-ghost:hover {
   color: var(--fg);
+}
+
+.link-arrow {
+  display: inline-flex;
+  align-items: center;
+  transition: transform var(--transition);
+}
+
+.link-arrow:hover {
+  transform: translateX(4px);
 }
 
 /* PRODUCT DETAIL */
@@ -1012,21 +1030,21 @@ button {
   }
 }
 
-  .field {
-    margin-bottom: 16px;
-  }
-
-  .field input,
-  .field select {
-    padding: 10px 14px;
-    font-size: 15px;
-  }
-
-  .auth-container .btn {
-    padding: 12px;
-    font-size: 14px;
-  }
+.field {
+  margin-bottom: 16px;
 }
+
+.field input,
+.field select {
+  padding: 10px 14px;
+  font-size: 15px;
+}
+
+.auth-container .btn {
+  padding: 12px;
+  font-size: 14px;
+}
+
 
 .auth-header {
   text-align: center;
@@ -1043,7 +1061,8 @@ button {
 }
 
 .auth-header p {
-  display: none; /* Facebook style is cleaner */
+  display: none;
+  /* Facebook style is cleaner */
 }
 
 .auth-footer {
@@ -1070,8 +1089,13 @@ button {
   border-bottom: 1px solid var(--border);
 }
 
-.divider:not(:empty)::before { margin-right: .5em; }
-.divider:not(:empty)::after { margin-left: .5em; }
+.divider:not(:empty)::before {
+  margin-right: .5em;
+}
+
+.divider:not(:empty)::after {
+  margin-left: .5em;
+}
 
 .auth-container .btn-primary {
   width: 100%;
@@ -1433,12 +1457,23 @@ button {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
-  50% { opacity: 0.7; transform: scale(0.9) rotate(180deg); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(0.9) rotate(180deg);
+  }
 }
 
 /* BUTTON LOADING STATES */
@@ -1455,14 +1490,14 @@ button {
   height: 18px;
   top: calc(50% - 9px);
   left: calc(50% - 9px);
-  border: 2px solid rgba(255,255,255,0.3);
+  border: 2px solid rgba(255, 255, 255, 0.3);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
 
 .btn-secondary.btn-loading::after {
-  border-color: rgba(0,0,0,0.1);
+  border-color: rgba(0, 0, 0, 0.1);
   border-top-color: var(--fg);
 }
 
