@@ -2,7 +2,9 @@
 
   <footer class="site-footer">
     <div class="container">
-      <p>&copy; <?= date('Y') ?> Curated. — Demo shop. No real charges.</p>
+      <p class="footer-msg">Curated with passion, designed for elegance. Elevating your lifestyle with the finest essentials, delivered with care.</p>
+      <p class="made-by">Made by <a href="https://www.linkedin.com/in/omar-ash1/" target="_blank" rel="noopener noreferrer">me</a></p>
+      <p class="copyright">&copy; <?= date('Y') ?> Curated</p>
     </div>
   </footer>
 

@@ -943,10 +943,43 @@ button {
 }
 
 .site-footer p {
-  margin: 0;
+  margin: 0 0 12px;
   text-align: center;
   font-size: 13px;
   color: var(--fg-muted);
+}
+
+.site-footer p:last-child {
+  margin-bottom: 0;
+}
+
+.footer-msg {
+  max-width: 600px;
+  margin: 0 auto 20px !important;
+  font-size: 15px !important;
+  line-height: 1.6;
+  color: var(--fg) !important;
+}
+
+.made-by {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.made-by a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  transition: opacity var(--transition);
+}
+
+.made-by a:hover {
+  opacity: 0.7;
+}
+
+.copyright {
+  font-size: 12px !important;
+  opacity: 0.8;
 }
 
 /* TOAST */
@@ -963,14 +996,15 @@ button {
   font-weight: 500;
   box-shadow: var(--shadow-lg);
   opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--transition), transform var(--transition);
-  z-index: 100;
+  visibility: hidden;
+  transition: all 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 1000;
 }
 
 .toast.show {
-  opacity: 1;
   transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  visibility: visible;
 }
 
 /* BACK LINK */

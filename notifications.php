@@ -10,11 +10,17 @@ $isAdmin = (user_details($userEmail)['type'] ?? '') === 'Admin';
 $notifications = notify_get($isAdmin ? null : $userEmail, 20);
 
 // Handle Mark All as Read
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_all_read') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if (csrf_check($_POST['csrf'] ?? '')) {
-        notify_mark_all_read($isAdmin ? null : $userEmail);
-        flash_set('All notifications marked as read.');
-        redirect('notifications.php');
+        if ($_POST['action'] === 'mark_all_read') {
+            notify_mark_all_read($isAdmin ? null : $userEmail);
+            flash_set('All notifications marked as read.');
+            redirect('notifications.php');
+        } elseif ($_POST['action'] === 'delete' && isset($_POST['id'])) {
+            notify_delete((int)$_POST['id'], $isAdmin ? null : $userEmail);
+            flash_set('Notification deleted.');
+            redirect('notifications.php');
+        }
     }
 }
 
@@ -42,9 +48,7 @@ require __DIR__ . '/header.php';
       <div style="margin-bottom: 20px; color: var(--border);">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="64" height="64"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
       </div>
-      <h3 style="margin-bottom: 8px;">No notifications yet</h3>
-      <p style="color: var(--fg-muted);">When you receive updates about your orders, they'll appear here.</p>
-      <a href="index.php" class="btn btn-primary" style="margin-top: 24px; display: inline-flex;">Continue Shopping</a>
+      <h3 style="margin-bottom: 8px;">No Updates yet</h3>
     </div>
   <?php else: ?>
     <div class="notification-list" style="display: flex; flex-direction: column; gap: 16px;">
@@ -53,9 +57,21 @@ require __DIR__ . '/header.php';
              style="padding: 20px; border-radius: 12px; border: 1px solid <?= $n['is_read'] ? 'var(--border)' : 'var(--accent-soft)' ?>; 
                     background: <?= $n['is_read'] ? 'var(--bg)' : 'rgba(var(--accent-rgb), 0.03)' ?>; 
                     position: relative; transition: transform 0.2s ease;">
-          <?php if (!$n['is_read']): ?>
-            <div style="position: absolute; top: 20px; right: 20px; width: 8px; height: 8px; background: var(--accent); border-radius: 50%;"></div>
-          <?php endif; ?>
+          
+          <div style="position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 12px;">
+            <?php if (!$n['is_read']): ?>
+              <div style="width: 8px; height: 8px; background: var(--accent); border-radius: 50%;"></div>
+            <?php endif; ?>
+            
+            <form method="post" onsubmit="return confirm('Delete this notification?');" style="display: inline;">
+              <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>" />
+              <input type="hidden" name="action" value="delete" />
+              <input type="hidden" name="id" value="<?= (int)$n['id'] ?>" />
+              <button type="submit" class="delete-btn" aria-label="Delete notification" title="Delete notification">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </form>
+          </div>
           
           <div style="display: flex; gap: 16px;">
             <div style="flex-shrink: 0; width: 40px; height: 40px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center;">
@@ -67,9 +83,16 @@ require __DIR__ . '/header.php';
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                <?php endif; ?>
             </div>
-            <div style="flex-grow: 1;">
+            <div style="flex-grow: 1; padding-right: 24px;">
               <h4 style="margin: 0; font-size: 16px; font-weight: 600;"><?= e($n['title']) ?></h4>
               <p style="margin: 4px 0 12px; color: var(--fg-muted); line-height: 1.5; font-size: 14px;"><?= e($n['message']) ?></p>
+              
+              <?php if (!empty($n['image_url'])): ?>
+                <div style="margin: 12px 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: var(--bg);">
+                  <img src="<?= e($n['image_url']) ?>" alt="Notification Image" style="width: 100%; height: auto; max-height: 500px; object-fit: contain; display: block;" />
+                </div>
+              <?php endif; ?>
+
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-size: 11px; color: var(--fg-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;">
                   <?= date('M j, g:i a', strtotime($n['created_at'])) ?>
@@ -96,6 +119,25 @@ require __DIR__ . '/header.php';
   }
   .notification-card.unread {
     border-left: 3px solid var(--accent) !important;
+  }
+  .delete-btn {
+    opacity: 0.4;
+    visibility: visible;
+    color: var(--fg-muted);
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .notification-card:hover .delete-btn {
+    opacity: 1;
+    color: var(--warn);
+  }
+  .delete-btn:hover {
+    background: #fce8e6;
   }
 </style>
 

@@ -406,9 +406,6 @@ function save_order(string $orderId, ?string $userEmail, float $total, array $it
         
         $db->commit();
         
-        // Notify admin about new order
-        notify_add(null, 'New Order Received', 'A new order (#' . $orderId . ') has been placed by ' . ($userEmail ?: 'Guest') . '.', 'admin.php');
-        
         return true;
     } catch (PDOException $e) {
         $db->rollBack();
@@ -518,23 +515,33 @@ function get_monthly_sales(): array {
 }
 
 // --- Notification System ---
-function notify_add(?string $userEmail, string $title, string $message, ?string $link = null): bool {
+function notify_add(?string $userEmail, string $title, string $message, ?string $link = null, ?string $imageUrl = null): bool {
     $db = get_db_connection();
-    $stmt = $db->prepare('INSERT INTO notifications (user_email, title, message, link) VALUES (?, ?, ?, ?)');
-    return $stmt->execute([$userEmail, $title, $message, $link]);
+    $stmt = $db->prepare('INSERT INTO notifications (user_email, title, message, link, image_url) VALUES (?, ?, ?, ?, ?)');
+    return $stmt->execute([$userEmail, $title, $message, $link, $imageUrl]);
 }
 
-function notify_get(?string $userEmail, int $limit = 10): array {
+function notify_get(?string $userEmail, int $limit = 20): array {
     $db = get_db_connection();
     if ($userEmail === null) {
-        // Get admin notifications (those with null user_email)
+        // Get admin notifications
         $stmt = $db->prepare('SELECT * FROM notifications WHERE user_email IS NULL ORDER BY created_at DESC LIMIT ?');
+        $stmt->bindValue(1, $limit, PDO::PARAM_INT);
     } else {
-        // Get user notifications + system-wide notifications (if any)
-        $stmt = $db->prepare('SELECT * FROM notifications WHERE user_email = ? OR user_email IS NULL ORDER BY created_at DESC LIMIT ?');
+        // Get user notifications + global ones, EXCLUDING dismissed ones.
+        $stmt = $db->prepare('
+            SELECT n.* 
+            FROM notifications n
+            LEFT JOIN notification_dismissals d ON n.id = d.notification_id AND d.user_email = ?
+            WHERE (n.user_email = ? OR n.user_email IS NULL)
+              AND d.notification_id IS NULL
+            ORDER BY n.created_at DESC 
+            LIMIT ?
+        ');
+        $stmt->bindValue(1, $userEmail, PDO::PARAM_STR);
+        $stmt->bindValue(2, $userEmail, PDO::PARAM_STR);
+        $stmt->bindValue(3, $limit, PDO::PARAM_INT);
     }
-    $stmt->bindValue(1, $userEmail, $userEmail === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
     $stmt->execute();
     return $stmt->fetchAll();
 }
@@ -544,9 +551,17 @@ function notify_count_unread(?string $userEmail): int {
     if ($userEmail === null) {
         $stmt = $db->prepare('SELECT COUNT(*) FROM notifications WHERE user_email IS NULL AND is_read = 0');
     } else {
-        $stmt = $db->prepare('SELECT COUNT(*) FROM notifications WHERE (user_email = ? OR user_email IS NULL) AND is_read = 0');
+        $stmt = $db->prepare('
+            SELECT COUNT(*) 
+            FROM notifications n
+            LEFT JOIN notification_dismissals d ON n.id = d.notification_id AND d.user_email = ?
+            WHERE (n.user_email = ? OR n.user_email IS NULL)
+              AND n.is_read = 0
+              AND d.notification_id IS NULL
+        ');
+        $stmt->bindValue(1, $userEmail);
+        $stmt->bindValue(2, $userEmail);
     }
-    if ($userEmail !== null) $stmt->bindValue(1, $userEmail);
     $stmt->execute();
     return (int)$stmt->fetchColumn();
 }
@@ -560,5 +575,32 @@ function notify_mark_all_read(?string $userEmail): bool {
     }
     if ($userEmail !== null) $stmt->bindValue(1, $userEmail);
     return $stmt->execute();
+}
+
+function notify_delete(int $id, ?string $userEmail): bool {
+    $db = get_db_connection();
+    
+    // If we're an admin/system (null userEmail), we delete the actual row.
+    if ($userEmail === null) {
+        $stmt = $db->prepare('DELETE FROM notifications WHERE id = ?');
+        return $stmt->execute([$id]);
+    }
+
+    // Check if the notification is global or user-specific.
+    $stmt = $db->prepare('SELECT user_email FROM notifications WHERE id = ?');
+    $stmt->execute([$id]);
+    $n = $stmt->fetch();
+    
+    if (!$n) return false;
+
+    if ($n['user_email'] === null) {
+        // Global notification: Don't delete row, just hide it for this user.
+        $stmt = $db->prepare('INSERT IGNORE INTO notification_dismissals (user_email, notification_id) VALUES (?, ?)');
+        return $stmt->execute([$userEmail, $id]);
+    } else {
+        // User-specific notification: Safe to delete the actual row if it's theirs.
+        $stmt = $db->prepare('DELETE FROM notifications WHERE id = ? AND user_email = ?');
+        return $stmt->execute([$id, $userEmail]);
+    }
 }
 

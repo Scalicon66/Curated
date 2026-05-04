@@ -143,6 +143,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             flash_set('All orders have been cleared.');
             redirect('admin.php');
         }
+        // --- SEND NOTIFICATION ---
+        if ($_POST['action'] === 'send_notification') {
+            $nTitle   = trim($_POST['notif_title'] ?? 'Announcement');
+            $nMessage = trim($_POST['notif_message'] ?? '');
+            
+            if (!$nMessage) {
+                $error = 'Notification message cannot be empty.';
+            } else {
+                $imageUrl = null;
+                if (isset($_FILES['notif_image']) && $_FILES['notif_image']['error'] === UPLOAD_ERR_OK) {
+                    $uploadDir = __DIR__ . '/images/';
+                    $ext = strtolower(pathinfo($_FILES['notif_image']['name'], PATHINFO_EXTENSION));
+                    $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                    if (in_array($ext, $allowed)) {
+                        $fileName = 'notif-' . bin2hex(random_bytes(8)) . '.' . $ext;
+                        $destPath = $uploadDir . $fileName;
+                        if (move_uploaded_file($_FILES['notif_image']['tmp_name'], $destPath)) {
+                            $imageUrl = 'images/' . $fileName;
+                        }
+                    }
+                }
+                
+                // Send to all users (null userEmail means system-wide in this context)
+                notify_add(null, $nTitle, $nMessage, null, $imageUrl);
+                flash_set('Notification sent to all users!');
+                redirect('admin.php');
+            }
+        }
     }
 }
 
@@ -399,6 +427,46 @@ require __DIR__ . '/header.php';
         <button type="submit" class="btn btn-primary" style="margin-top: 16px;">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add Product
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Send Notification Form -->
+  <div class="admin-card" style="margin-bottom: 32px;">
+    <div class="card-header">
+      <h3>Send System Notification</h3>
+    </div>
+    <div style="padding: 24px;">
+      <p style="font-size: 13px; color: var(--fg-muted); margin-bottom: 20px;">
+        This will send a notification to all users. You can include an optional image.
+      </p>
+      <form method="post" action="admin.php" enctype="multipart/form-data" class="admin-form">
+        <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>" />
+        <input type="hidden" name="action" value="send_notification" />
+
+        <div class="admin-form-grid">
+          <div class="field">
+            <label for="notif_title">Notification Title</label>
+            <input type="text" id="notif_title" name="notif_title" required placeholder="e.g. New Collection Available!" />
+          </div>
+
+          <div class="field">
+            <label for="notif_image">Notification Image (Optional)</label>
+            <input type="file" id="notif_image" name="notif_image" accept="image/*"
+                   style="padding: 10px; border: 1px dashed var(--border); border-radius: 8px; background: var(--bg); width: 100%;" />
+          </div>
+
+          <div class="field" style="grid-column: 1 / -1;">
+            <label for="notif_message">Message Content</label>
+            <textarea id="notif_message" name="notif_message" required rows="3" placeholder="Write your notification message here..."
+                      style="width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; font: inherit; background: var(--bg); resize: vertical;"></textarea>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 16px; background: var(--accent);">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="margin-right: 8px;"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+          Send Notification
         </button>
       </form>
     </div>
